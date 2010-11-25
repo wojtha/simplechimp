@@ -1,0 +1,100 @@
+<?php
+/**
+ * @file MailChimp Simple Integration Drupal module
+ *
+ * Simple module which displays MailChimp form.
+ *
+ * @author Vojtech Kusy <wojtha@gmail.com>
+ * @license GNU GPL2 license
+ */
+
+/**
+ * Implementation of hook_block()
+ */
+function simplechimp_block($op = 'list', $delta = 0, $edit = array()) {
+  if ($op == 'list') {
+    $blocks = array();
+    $blocks[0] = array(
+      'info' => 'MailChimp subscription',
+      'weight' => 0,
+      'status' => 0,
+    );
+    return $blocks;
+  }
+  elseif ($op == 'configure' && $delta == 0) {
+    $form = array();
+    $form['mailchimp_url'] = array(
+      '#type' => 'textfield',
+      '#title' => t('MailChimp Form URL'),
+      '#description' => t('Enter URL address of the subscription form provided by MailChimp form e.g. <em>http://www.us2.list-manage.com/subscribe?u=62118d385676d9033542da42b&id=249d6a295d</em>'),
+      '#default_value' => isset($edit['mailchimp_url']) ? $edit['mailchimp_url'] : variable_get('simplechimp_url', ''),
+      '#required' => TRUE,
+    );
+    $form['body'] = array(
+      '#type' => 'textarea',
+      '#title' => t('Block body'),
+      '#default_value' => isset($edit['mailchimp_body']) ? $edit['mailchimp_body'] : variable_get('simplechimp_body', ''),
+      '#rows' => 15,
+      '#description' => t('The content of the block as shown to the user.'),
+    ); 
+    return $form;
+  }
+  elseif ($op == 'save' && $delta == 0) {
+    variable_set('simplechimp_body', $edit['body']);
+    variable_set('simplechimp_url', $edit['mailchimp_url']);
+    variable_set('simplechimp_url_post', str_replace('/subscribe?', '/subscribe/post?', $edit['mailchimp_url']));
+    variable_set('simplechimp_url_json', str_replace('/subscribe?', '/subscribe/post-json?', $edit['mailchimp_url']) . '&c=?');
+  }
+  elseif ($op == 'view' && $delta == 0) {
+    $path = drupal_get_path('module', 'simplechimp');
+    drupal_add_js($path . '/jquery.validate.js');
+    drupal_add_js($path . '/simplechimp.js');
+    // Check if Jquery Update is installed, install updated version instead of Drupal core version.
+    if (defined(JQUERY_UPDATE_REPLACE_PATH)) {
+      drupal_add_js(JQUERY_UPDATE_REPLACE_PATH . '/jquery.forms.js');
+    }
+    else {
+      drupal_add_js('misc/jquery.form.js');
+    }
+    // Provide setting for our javascript: Drupal.settings.simplechimp namespace
+    drupal_add_js(array('simplechimp' => array('json_url' => variable_get('simplechimp_url_json', ''))), 'setting');
+
+    $mailchimp_form_url = variable_get('simplechimp_url_post', '');
+
+    if (empty($mailchimp_form_url)) {
+      drupal_set_message(t('<strong>MailChimp</strong> form URL is not specified. Please, go to the <a href="@url">Simple Mail Chimp block settings</a> and enter appropriate values.', array('@url' => url('admin/build/block/configure/simplechimp/0'))), 'error');
+      return array();
+    }
+
+    $body = filter_xss_admin(variable_get('simplechimp_body', ''));
+    $subscribe_text = t('Subscribe');
+
+    return array(
+      'subject' => t('Newsletter'),
+      'content' => theme('simplechimp_block', $mailchimp_form_url, $body, $subscribe_text),
+    );
+  }
+}
+
+/**
+ * Implementation of hook_theme()
+ */
+function simplechimp_theme($existing, $type, $theme, $path) {
+  return array(
+    'simplechimp_block' => array(
+      'arguments' => array('action' => NULL, 'body' => NULL, 'subscribe_text' => NULL),
+      'template' => 'simplechimp-subscribe',
+    ),
+  );
+}
+
+
+/**
+ * Renders mailchimp block anywhere in code for you.
+ *
+ * @return html
+ */
+function simplechimp_embed() {
+  $block = module_invoke('simplechimp', 'block', 'view', 0);
+  return theme('block', $block);
+}

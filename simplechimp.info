@@ -1,0 +1,6 @@
+; $Id$
+name = Simple MailChimp
+description = Display MailChimp subscription form in a block - nothing less, nothing more.
+core = 6.x
+; package = 
+; dependencies[] = 
